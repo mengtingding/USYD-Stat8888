@@ -1,0 +1,639 @@
+---
+title: "Ass1_480206718"
+author: "Mengting Ding 480206718"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: show
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+### Due date: 5:00pm Friday week 5 (the 25th of September, 2020)
+
+### Worth: 5% of your final mark
+
+Your assignment, if you choose to accept it (and you must), is to perform an exploratory data analysis (EDA)
+on the data used on the major project.
+
+# About the data
+
+The dataset for the major project can be found in "STAT3888_Assignments" folder
+in the STAT3888 module on "2020_SCIE_FOOD_QBIO_NUTM3888_INTERDISCIPLINARY_PROJECT_UNITS"
+Canvas site in the file "data.zip". In this zip file you will find the files:
+
+* AHS11biomedical.csv
+* AHS11nutrient.csv
+* AHS11food.csv
+
+The main identification variable is 
+
++ ABSPID 
+
+which corresponds to a unique person ID and which can be used to link the three datasets
+(the primary key if you are familiar with SQL). There is also
+
++ ABSHID 
+
+which corresponds to a persons household ID.
+
+In addition, there is a data dictionary which contains the meanings and special values 
+for each of the variables in each of the above datasets under different sheets in the
+Excel spreadsheet called:
+
++ nutmstatDataItems2019.xlsx
+
+
+# Converting the raw data to technically correct data
+
+The first set of code chunks below "attempt" to convert the raw data to technically correct data
+(I have done my best to do this, but there could still be problems with my code - it should be checked). 
+The end product of the script below is to creates 9  tibbles
+
++ dict_XXXX - containing the special meanings of variables in the raw dataset.
++ types_XXXX - containing human readable variable names, and a guess of the variable type.
++ tech_XXXX - the technically correct dataset.
+
+where XXXX is one of biom, nutr or food. The variable types of each variable in 
+tech_XXXX should be correct, and NAs should correspond to missing values. In addition
+variables containing missing values contain "_MISS" versions of the variable which contain
+the *reason* the value is missing. For example the variable "PHDCMWBC" has a corresponding
+variable "PHDCMWBC_MISS" containing the reason values in "PHDCMWBC" are missing.
+
+The 9 main tibbles are then saved as an Rdata file called "tech_data.Rdata" which can be
+loaded into memory using the `load("tech_data.Rdata")` command.
+
+# Your instructions
+
+For the first lab your task is to write a report. 
+
++ This report should be in the form of an R-markdown document (.Rmd) which you will submit. 
+
++ Please name this file "Ass1_YOUR_SID.Rmd" where "YOUR_SID" is replaced by your student id. 
+
++ Please include your name and student number in the Rmd YAML header.
+
+The report should be and integrated report containing both R commands and text (not text alone,
+nor R code alone - marks will be deducted if you hand an Rmd file like this).
+The report should be organised containing the following sections:
+
+1. **Executive summary**. This is written for a non expert (e.g. manager)
+where you report the main findings of your analysis. In this section
+say what you did, what you found, any shortcomings, and what you intend
+to do next. Try to use non-technical language. Furthermore, identify what 
+variables that might be used as a research question (what are potentially 
+the response variables you might want to predict)?
+
+2. **Exploratory data analysis**.  Perform an exploratory data analysis 
+on the datasets in order to identify problems with the datasets including 
+outliers, and logical inconsistencies. Use data visualization techniques
+to determine patterns of missingness (see the second set of lecture slides).
+
+
+3. **Outliers**. Create additional variables containing indicators for whether a variable 
+contains outliers. For example the variable "PHDCMWBC" has a corresponding
+binary variable "PHDCMWBC_OUT" indicating whether or not a sample for that
+variable is an outlier.
+
+4. **Missing values**. Produce versions of the datasets that partition each dataset 
+by taking subsets of rows or columns to use as many rows/columns as possible so that 
+the resulting datasets contain no missing values. If you judge that
+particular columns will not be useful in any analysis these should be dropped too.
+
+5. **Clean version of data**. The final version of the datasets should be placed 
+into R objects called clean_XXXX and saved as an Rdata file called "clean_data.Rdata" 
+which might be a starting point
+for the major project.
+
+
+# Convert the raw data to technically correct data
+
+```{r setup, include=FALSE}
+# Default knitting options
+knitr::opts_chunk$set(echo=TRUE, # Echo the code
+                      tidy=TRUE, # Nicely dity up code
+                      warning=FALSE, # No warnings please 
+                      message=FALSE) # No messages please
+
+options(warn=-1) 
+
+# Suppress start up warnings when loading libraries
+library <- function(...) {
+  suppressPackageStartupMessages(base::library(...))
+}
+```
+
+```{r libraries}
+# Load in all libraries
+library(tidyverse)
+library(here)      # directory referencing
+library(readxl)    # reading Excel files
+library(janitor)   # data cleaning 
+library(stringr)   # string manimpuation
+library(tidyr)     # new tidy functions
+```
+
+### First we read raw data into R.
+
+```{r read_in_raw_data}
+raw_biom <- read.csv(here("data","AHS11biomedical.csv"), header=TRUE)
+raw_nutr <- read.csv(here("data","AHS11nutrient.csv"), header=TRUE)
+raw_food <- read.csv(here("data","AHS11food.csv"), header=TRUE)
+```
+
+For the raw data
+
++ The "raw_biom" data has `r nrow(raw_biom)` subjects and `r ncol(raw_biom)` variables.  
+
++ The "raw_nutr" data has `r nrow(raw_nutr)` subjects and `r ncol(raw_nutr)` variables.  
+
++ The "raw_food" data (the food diary with multiple items per subject) has `r nrow(raw_food)` items and `r ncol(raw_food)` variables. 
+
+Next we are going to create a quiet version of `readxl` function so that warning and 
+other messages don't appear in the knitted version of this document.
+
+```{r define_quiet_read_function}
+quiet_read <- purrr::quietly(readxl::read_excel)
+```
+
+Read the data dictionary for each of the three data sources which are located
+in sheets 1 to 3 of the "nutmstatDataItems2019.xlsx" file.
+
+```{r read_data_dictionaries}
+dict_biom <- quiet_read(here("data","nutmstatDataItems2019.xlsx"),sheet=1)$result
+dict_nutr <- quiet_read(here("data","nutmstatDataItems2019.xlsx"),sheet=2)$result
+dict_food <- quiet_read(here("data","nutmstatDataItems2019.xlsx"),sheet=3)$result
+```
+
+### Cleaning the variable names
+
+We are going to process the data dictionary and use this information to
+process the raw datasets so that they are technically correct.
+
+```{r clean_names}
+dict_biom <- dict_biom %>% janitor::clean_names() %>% rename(extra=x3)  
+dict_nutr <- dict_nutr %>% janitor::clean_names() %>% rename(extra1=x3,extra2=x4) 
+dict_food <- dict_food %>% janitor::clean_names() %>% rename(extra=x3) 
+```
+
+### Remove empty rows
+
+The next step will be to remove any empty rows from each of the raw 
+datasets.
+
+```{r remove_empty_rows}
+# Remove any empty rows
+dict_biom <- dict_biom %>% janitor::remove_empty("rows")
+dict_nutr <- dict_nutr %>% janitor::remove_empty("rows")
+dict_food <- dict_food %>% janitor::remove_empty("rows")
+```
+
+The data dictionaries are organized in blocks. For example 
+
+```{r take_a_look_at_biom2}
+DT::datatable(dict_biom)
+```
+ 
+The first line of each block contains a human readable name, and possibly some
+extra information.
+
+
+### Create datasets with human readable versions of the variable names
+
+```{r get_first_line_of_each_block}
+# Remove any empty rows
+biom_readable <- dict_biom %>% 
+  filter(!is.na(variable_name))  
+
+nutr_readable <- dict_nutr %>% 
+  filter(!is.na(variable_name)) %>% 
+  distinct() # Removes 1 duplicate
+
+food_readable <- dict_food %>% 
+  filter(!is.na(variable_name)) %>% 
+  distinct() 
+```
+
+ 
+### Fill in blanks in the variable names
+
+The blocks are defined by a variable name, e.g. "BMISC" and any NAs below it
+correspond to this variable. So we are going to identify the blocks using the
+fill function
+
+```{r fill_NAs_in_variable_names}
+# Remove any empty rows
+dict_biom <- dict_biom %>% tidyr::fill(variable_name)
+dict_nutr <- dict_nutr %>% tidyr::fill(variable_name)
+dict_food <- dict_food %>% tidyr::fill(variable_name)  
+```
+ 
+
+### Create a function to determine which variables are continuous and which are categorical
+
+
+Next we will identify which variables are continuous, and which are factors
+my performing a string search for each block for the word "continuous".
+
+```{r}
+get_type <- function(dict) 
+{
+  #dict <- dict_nutr
+  var_names <- unique(dict$variable_name)
+  var_type  <- c()
+  for (j in 1:length(var_names))
+  {
+    # Get all dictionary lines corresponding to a varible
+    # (a block of lines)
+    dict_block <- dict %>% 
+      filter(variable_name==var_names[j])
+    
+    # Take all of the characters in a block, paste them 
+    # together and make all characters lower case
+    block_string <- dict_block %>%
+      select(-variable_name) %>%
+      as.matrix() %>%
+      as.vector() %>%
+      paste(collapse="") %>%
+      tolower()
+    
+    # Assign variable if we can find the word "continuous"
+    # in the block otherwise assume that it is "categorical"
+    var_type[j] <- block_string %>% 
+      str_detect("continuous") %>% 
+      ifelse("continuous","categorical") 
+  }
+  return(var_type)
+}
+```
+
+### Try to infer the data types from the data dictionary
+ 
+```{r, eval=TRUE}  
+tib1 <- tibble(variable_type=get_type(dict_biom))
+tib2 <- tibble(variable_type=rep("continuous",nrow(nutr_readable)))
+tib3 <- tibble(variable_type=get_type(dict_food))
+
+# Create a new tibble that takes the readable tibble,
+# appends the variable type, and do some minor fixing
+types_biom <- bind_cols(biom_readable, tib1) %>%
+  mutate(variable_type=ifelse(variable_name%in%c("ABSPID","ABSHID"), "string",variable_type))
+
+types_nutr <- bind_cols(nutr_readable, tib2) %>%
+  mutate(variable_type=ifelse(variable_name%in%c("ABSPID","ABSHID"), "string",variable_type))
+
+types_food <- bind_cols(food_readable, tib3) %>%
+  mutate(variable_type=ifelse(variable_name%in%c("ABSPID","ABSHID"), "string",variable_type)) 
+```
+
+
+### Split the description varible in the data dictionary into value and meaning columns
+
+```{r}
+get_special_value_meanings <- function(dict)
+{
+  var_names <- unique(dict$variable_name)
+  special   <- tibble(variable_name=c(),
+                      value=c(),
+                      meaning=c())
+  
+  for (j in 1:length(var_names)) 
+  {
+    # Get a block of values from the dictionary
+    block <-  dict %>%
+      filter(variable_name==var_names[j])
+  
+    if (nrow(block)>1) {
+      # Split  the descrition into value/meaning pairs
+      special_block <- block[-1,-c(3:ncol(block))] %>%
+        dplyr::filter(!grepl("continuous",tolower(description))) %>%
+        separate(col=2, 
+                 sep="[.]",
+                 into=c("value","meaning")) %>%
+        mutate(value=as.numeric(value),
+               meaning=tolower(str_trim(meaning))) 
+      
+      # append these to a block of special value/meaning pairs
+      special <- bind_rows(special, special_block)
+    }
+  }
+  return(special)
+}
+
+special_biom <- get_special_value_meanings(dict_biom)
+special_nutr <- get_special_value_meanings(dict_nutr) %>% na.omit()
+special_food <- get_special_value_meanings(dict_food) %>% na.omit()
+```
+
+```{r special_biom}
+DT::datatable(special_biom)
+```
+
+In summary so far we have the following R objects:
+
++ dict_XXXX contains the dictionary category meainings.
++ special_XXXX contains the meanings of special values.
++ types_XXXX contains the variable types and human readable values.
++ raw_XXXX contains the raw data.
+
+We will assume that special values in the data dictionary are missing values if the variable type is
+"continuous". If the variable type is "categorical" then the special values are missingness indicators if
+the value is one of
+
++ "not applicable",
++ "measurement not taken - equipment faulty",
++ "measurement not taken - other reason",
++ "measurement not taken - refusal",
++ "not collected",
++ "not determined",
++ "not known",
++ "not known if currently on a diet",
++ "not measured",
++ "not reported",
++ "not stated",
++ "not used"
+
+Otherwise we will assume that the categorical value is a non-missing category.
+
+Remove columns in the "food" dataset with columns we don't have dictionary items for.
+These seem to be some type of "id" variables, perhaps, for state, council or suburb
+level identification.
+
+```{r}
+proc_food <- raw_food %>%
+  select(-ABSLFID,
+         -ABSBID,
+         -ABSSID,
+         -ABSFID)
+```
+
+### Convert all categorical variables and convert them to factors in R.
+
+```{r}
+categorical_to_factor <- function(types, proc) 
+{
+  var_names <- colnames(proc)  
+  for (i in 1:length(var_names)) 
+  {
+    # Extract the inferred variable type from the types tibble
+    var_type <- types %>% 
+      filter(variable_name==var_names[i]) %>%
+      select(variable_type) %>%
+      as.character()
+    
+    # If the type is categorical turn the variable into a factor
+    if (var_type=="categorical") {
+      proc[[var_names[i]]] <- as.factor(proc[[var_names[i]]])
+    }
+  }
+  return(proc)
+}
+
+proc_biom <- categorical_to_factor(types_biom,raw_biom)
+proc_nutr <- categorical_to_factor(types_nutr,raw_nutr)
+proc_food <- categorical_to_factor(types_food,proc_food)
+```
+
+### Create a function the converts raw data to technically correct data 
+
+```{r}
+miss_defs <- c("not applicable",
+               "measurement not taken - equipment faulty",
+               "measurement not taken - other reason",
+               "measurement not taken - refusal",
+               "not collected",
+               "not determined",
+               "not known",
+               "not known if currently on a diet",
+               "not measured",
+               "not reported",
+               "not stated",
+               "not used")
+
+raw_to_tech <- function(proc, special, types)
+{
+  var_names <- colnames(proc)
+  for (j in 1:length(var_names)) 
+  {
+    var_val <- var_names[j]
+    specials <- special %>%
+      filter(variable_name==var_val)
+    if (nrow(specials)>0) 
+    {
+      ind <- which(var_names==var_val)
+      var_miss_str  <- paste0(var_val,"_MISS")
+      var_miss_reas <- rep("observed",nrow(proc))
+      var_vals      <- proc[,ind]
+      var_type <- types %>% 
+        filter(variable_name==var_val) %>%
+        select(variable_type) %>%
+        as.character()
+      if (var_type=="continuous") {
+        for (i in 1:length(var_vals)) {
+          if (var_vals[i] %in% specials$value) {
+            ind2 <- which(var_vals[i]==specials$value)
+            var_vals[i]      <- NA
+            var_miss_reas[i] <- specials[ind2,3] %>% as.character()
+          }
+        }
+      }
+      if (var_type=="categorical") {
+        for (i in 1:length(var_vals)) {
+          spec_val  <- specials$value
+          spec_meam <- specials$meaning
+          if (var_vals[i] %in% spec_val) 
+          {
+            var_mean <- spec_meam[var_vals[i] == spec_val]
+            if (var_mean %in% miss_defs) {
+              var_vals[i]      <- NA
+              var_miss_reas[j] <- var_mean
+            }
+          } else {
+            var_vals[i]      <- NA
+            var_miss_reas[i] <- "unknown"
+          }
+        }
+      }
+      if (any(is.na(var_vals))) {
+        proc[,ind] <- var_vals
+        proc$dummy <- var_miss_reas
+        colnames(proc)[ncol(proc)] <- var_miss_str
+      }
+    }
+  }
+  return(proc)
+}
+```
+
+### Applu the function to each of the three main datasets
+
+```{r}
+tech_biom <- raw_to_tech(proc_biom, special_biom, types_biom)
+tech_nutr <- raw_to_tech(proc_nutr, special_nutr, types_nutr)
+tech_food <- raw_to_tech(proc_food, special_food, types_food)  
+```
+
+### Save the relevant R objects for future use.
+
+```{r}
+save(tech_biom, dict_biom, types_biom,
+     tech_nutr, dict_nutr, types_nutr,
+     tech_food, dict_nutr, types_food,
+     file = "tech_data.Rdata")
+```
+
+### Executive summary
+
+After cleaning the data, I have explored the numeric variables and the categorical variables I am interested in. Through the EDA, I have not found any mismatches between the data and the data dictionary yet. For the numeric variables, the values are all logically consistent. I did not find any anomaly in the data and no low variance variable.The good response variable may be the CHOLNTR (cholesterol status) since it is affected by many factors such as age and gender which can explore the relationship between them further. 
+There are 9 numeric variables, they all have outliers except AGEC. 
+40 out of 94 variables have missing values.
+To have a complete dataset I have used the function complete.cases to remove all the missing values rows. The dimension of the complete dataset is 406 rows 94 columns. 
+
+
+### EDA
+
+find out which are categorical and which are numeric variables. 
+
+```{r}
+names(tech_biom)[sapply(tech_biom, is.numeric)]
+names(tech_biom)[sapply(tech_biom, is.factor)]
+```
+
+We first look at the numeric variables.
+```{r}
+library(naniar)
+library(knitr)
+a <- c(summary(tech_biom$BMISC),var(tech_biom$BMISC %>% na.omit())) #BMI
+b <- c(summary(tech_biom$AGEC),0,var(tech_biom$AGEC))
+c <- c(summary(tech_biom$PHDKGWBC),var(tech_biom$PHDKGWBC %>% na.omit())) #measured weight
+d <- c(summary(tech_biom$PHDCMHBC),var(tech_biom$PHDCMHBC %>% na.omit())) #measured height
+e <- c(summary(tech_biom$PHDCMWBC),var(tech_biom$PHDCMWBC %>% na.omit())) # measured waist circumference 
+f <- c(summary(tech_biom$ADTOTSE),var(tech_biom$ADTOTSE %>% na.omit()))# total min spent siting&lying down
+g <- c(summary(tech_biom$DIASTOL),var(tech_biom$DIASTOL %>% na.omit()))#diastolic blood pressure
+h <- c(summary(tech_biom$SLPTIME),var(tech_biom$SLPTIME %>% na.omit())) # sleep time
+i <- c(summary(tech_biom$SYSTOL),var(tech_biom$SYSTOL %>% na.omit())) # systolic blood pressure
+n <- c("Min","1st quartile","Median","Mean","3rd quartile", "max","NA","var")
+sum_tab <- bind_cols(n,a,b,c,d,e,f,g,h,i)
+colnames(sum_tab)<-c("stats","BMISC","AGEC","PHDKGWBC","PHDCMHBC","PHDCMWBC","ADTOTSE","DIASTOL","SLPTIME","SYSTOL")
+kable(sum_tab,format = "html")
+
+```
+
+This table is a statistical summary of all the numeric variables. There is no low variance variable.
+
+
+categorical variables 
+```{r}
+#CHOLNTR #total cholesterol status
+#CHOLRESB # total cholesterol range
+# gender vs cholesterol 
+counts <- table(tech_biom$SEX,tech_biom$CHOLNTR)
+counts[1,] <- counts[1,]/sum(counts[1,])
+counts[2,] <- counts[2,]/sum(counts[2,])
+barplot(table(tech_biom$SEX),col=c("dodgerblue3","firebrick3"),main="sex distribution", legend = c("male","female"))
+barplot(counts,col=c("dodgerblue3","firebrick3"),legend=c("male","female"),beside = TRUE,main ="gender vs cholesterol status")
+```
+
+The distribution of sex shows that there are more female than male. Therefore we need relative frequencies to show the relationship between gender and cholesterol status. After dividing the original count table by the total number of male and that of female, the relative frequency is presented and now we can compare them on cholesterol status. 
+In the side-by-side barchart, 1 stands for normal total cholesterol status, 2 stands for abnormal cholesterol status. We can observe that in this dataset male is more likely to have normal cholesterol status than female and female is more likely to have abnormal cholesterol status than male. 
+
+
+```{r}
+# age vs cholesterol status
+counts <- table(tech_biom$CHOLNTR,tech_biom$AGEC)
+counts <- counts[2:3,]
+barplot(counts,col=c("springgreen4","steelblue4"),legend=rownames(counts),main = "cholesterol status and age")
+```
+
+From the stacked bar chart, as the age goes up people are more likely to have abnormal cholesterol status, especially between the age of 50 to 60. 
+
+### outlier detection 
+
+### indication of outliers
+First define a function to identify the outliers, then create a table to bind the results for each numeric variable and changed their column names. 
+```{r}
+is_outlier <- function(x) { return(x%in%boxplot(x, plot = FALSE)$out); }
+BMISC_out  <- tech_biom$BMISC %>% (.funs = is_outlier)
+AGEC_out  <- tech_biom$AGEC %>% (.funs = is_outlier) 
+PHDKGWBC_out  <- tech_biom$PHDKGWBC %>% (.funs = is_outlier) 
+PHDCMHBC_out  <- tech_biom$PHDCMHBC %>% (.funs = is_outlier) 
+PHDCMWBC_out  <- tech_biom$PHDCMWBC %>% (.funs = is_outlier) 
+ADTOTSE_out  <- tech_biom$ADTOTSE %>% (.funs = is_outlier)
+DIASTOL_out  <- tech_biom$DIASTOL %>% (.funs = is_outlier)
+SLPTIME_out  <- tech_biom$SLPTIME %>% (.funs = is_outlier) 
+SYSTOL_out  <- tech_biom$SYSTOL %>% (.funs = is_outlier) 
+
+tib2 <- bind_cols(BMISC_out,AGEC_out,PHDKGWBC_out,PHDCMHBC_out,PHDCMWBC_out,ADTOTSE_out,DIASTOL_out,SLPTIME_out,SYSTOL_out)
+colnames(tib2) <- c("BMISC_out","AGEC_out","PHDKGWBC_out","PHDCMHBC_out","PHDCMWBC_out","ADTOTSE_out","DIASTOL_out","SLPTIME_out","SYSTOL_out")
+tech_biom2 <- bind_cols(tech_biom,tib2)
+library(dplyr)
+
+```
+
+### prevalence of outliers
+In this part, I created a summary table for outliers for each variable. To iterate through the variables in the dataset and count the number of outliers and percentage of the outliers for variables which are numeric. Bind the results together and produce a kable output for better presentation. 
+
+```{r}
+#iterate through each variables, if it is numeric count the number of outliers(n_out) and divide it by the length of the variable(perc_out)
+n_out <- rep(0,dim(tech_biom)[2])
+perc_out <- rep(0,dim(tech_biom)[2])
+
+for (j in 1:dim(tech_biom)[2]){
+  if (tech_biom[,j] %>% is.numeric()){
+    n_out[j] <- sum(tech_biom[,j]%>% (.funs = is_outlier))
+    perc_out[j] <- n_out[j]*100/(length(tech_biom[,j] %>% na.omit()))
+  }
+    
+}
+
+name <- variable.names(tech_biom)
+sum_out <- data.frame(name,n_out,perc_out) # convert to dataframe
+colnames(sum_out) <- c("variables","n_out","perc_out")
+sum_out <- sum_out[order(sum_out$n_out,decreasing = TRUE),] #sort the dataframe decreasingly
+sum_out <- kable(sum_out,digits=2,format = "html") #present the data in the form of kable
+sum_out
+```
+
+This table shows that PHDCMHBC had the maximum number of outliers 929, takes up 9 percent of its observations. PHDCMWBC has minimum number of outliers, 47, is 0.46 percent of its observations. 
+
+
+### prevalance of missingness
+```{r}
+miss_sum <- kable(miss_var_summary(tech_biom),digits=2, format = "html")
+miss_sum
+miss_df <- miss_var_summary(tech_biom)
+count(miss_df[miss_df$n_miss >0,])
+```
+
+the max number of missing value is 9019 for CVDMEDST variable, which is about 74 percent of it's total observation.
+DIETRDI is the variable which has the least missing value. There are 40 out of 94 variables have missing values. 
+
+###visualisation of missingness 
+
+```{r}
+library("naniar")
+gg_miss_var(tech_biom[1:40])
+```
+
+This plot is generated to show the relative missingness of the variables. Due to the large amount of the variables, here I have only chosen the first 40 in the plot. ALTRESB, ALTNTR, APOBRESB, APOBNTR,CHOLRESB, CHOLNTR, B12RESB are the variables which have relatively high missing values.
+
+### complete dataset
+A complete dataset is created by using complete.cases function to remove all of the rows which have missing values.
+```{r}
+#removing all missing values 
+
+tech_biom3 <- tech_biom[complete.cases(tech_biom),]
+
+dim(tech_biom3)
+```
+
+```{r}
+save(tech_biom3, dict_biom, types_biom,
+     tech_nutr, dict_nutr, types_nutr,
+     tech_food, dict_nutr, types_food,
+     file = "tech_data.Rdata")
+```
+
+

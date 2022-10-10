@@ -1,0 +1,248 @@
+---
+title: "stat3888 project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+load("tech_data.RData")
+dim(tech_food)
+dim(tech_nutr)
+dim(tech_biom)
+```
+load packages 
+```{r}
+library("ggplot2")
+library("dplyr") 
+```
+
+
+```{r sugar vs cholesterol}
+sugar <- data.frame(tech_nutr$SUGART1,tech_biom$CHOLNTR) %>% na.omit
+colnames(sugar) <- c("SUGAR","CHOLNTR")
+res <- glm(as.numeric(sugar$CHOLNTR) ~ sugar$SUGAR) #family = binomial
+summary(res)
+sugar %>% ggplot(aes(sugar$SUGAR,as.numeric(sugar$CHOLNTR))) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + ggtitle("Logistic regression model fit") + theme_bw() + xlab("sugar") + ylab("cholesterol state") + xlim(0,250)
+```
+sugar day 2
+insignificant negative relationship
+```{r}
+sugar <- data.frame(tech_nutr$SUGART2,tech_biom$CHOLNTR) %>% na.omit
+colnames(sugar) <- c("SUGAR","CHOLNTR")
+res <- glm(as.numeric(sugar$CHOLNTR) ~ sugar$SUGAR) #family = binomial
+summary(res)
+
+sugar %>% ggplot(aes(sugar$SUGAR,as.numeric(sugar$CHOLNTR))) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + ggtitle("Logistic regression model fit") + theme_bw() + xlab("sugar") + ylab("cholesterol state") + xlim(0,250)
+```
+
+
+
+
+```{r fat vs cholesterol}
+#hist(tech_nutr$FATT1)
+fat <- data.frame(tech_nutr$FATT1,tech_biom$CHOLNTR) %>% na.omit()
+colnames(fat) <- c("FAT", "CHOLNTR")
+res <- glm(as.numeric(fat$CHOLNTR) ~ fat$FAT) #family = binomial
+summary(res)
+boxplot(fat$FAT)
+fat %>% ggplot(aes(fat$FAT,as.numeric(fat$CHOLNTR))) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + ggtitle("Logistic regression model fit") + theme_bw() + xlab("fat") + ylab("cholesterol state") + xlim(0,200)
+
+```
+fat day 2
+insignificant pos. relationship
+```{r}
+fat <- data.frame(tech_nutr$FATT2,tech_biom$CHOLNTR) %>% na.omit()
+colnames(fat) <- c("FAT", "CHOLNTR")
+res <- glm(as.numeric(fat$CHOLNTR) ~ fat$FAT) #family = binomial
+summary(res)
+fat %>% ggplot(aes(fat$FAT,as.numeric(fat$CHOLNTR))) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + ggtitle("Logistic regression model fit") + theme_bw() + xlab("fat day2") + ylab("cholesterol state") + xlim(0,200)
+```
+saturated fat vs cholesterol day1
+```{r saturated fat}
+sat.fat <- data.frame(tech_nutr$SATFATT1,tech_biom$CHOLNTR) %>% na.omit()
+colnames(sat.fat) <- c("satfat","CHOLNTR")
+res <- glm(as.numeric(sat.fat$CHOLNTR) ~ sat.fat$satfat) #family = binomial
+summary(res)
+boxplot(sat.fat$satfat)
+sat.fat <- sat.fat[sat.fat$satfat <= 50,]
+
+```
+saturated fat day2
+insignificant positive relationship
+```{r}
+sat.fat <- data.frame(tech_nutr$SATFATT2,tech_biom$CHOLNTR) %>% na.omit()
+colnames(sat.fat) <- c("satfat","CHOLNTR")
+res <- glm(as.numeric(sat.fat$CHOLNTR) ~ sat.fat$satfat) #family = binomial
+summary(res)
+
+fat %>% ggplot(aes(sat.fat$satfat,as.numeric(sat.fat$CHOLNTR))) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + ggtitle("Logistic regression model fit") + theme_bw() + xlab("saturated fat day2") + ylab("cholesterol state")
+```
+
+mono-unsaturated fat 
+```{r mono-unsaturated fat}
+mufat <- data.frame(tech_nutr$MUFATT1,tech_biom$CHOLNTR) %>% na.omit()
+colnames(mufat) <- c("MUFATT1","CHOLNTR")
+res <- glm(as.numeric(mufat$CHOLNTR) ~ mufat$MUFATT1) #family = binomial
+summary(res)
+fat %>% ggplot(aes(mufat$MUFATT1,as.numeric(mufat$CHOLNTR))) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + theme_bw() + xlab("monounsaturated fat") + ylab("cholesterol state")+xlim(0,40)
+```
+
+
+
+
+
+### sugar vs diabetes states
+positive related, significant, with outliers
+```{r}
+dia_sugar <- data.frame(tech_nutr$SUGART1,tech_biom$DIABBC) %>% na.omit
+colnames(dia_sugar) <- c("SUGART1","DIABBC")
+boxplot(dia_sugar$SUGART1)
+hist(as.numeric(dia_sugar$DIABBC))
+res <- glm(as.numeric(dia_sugar$DIABBC) ~ dia_sugar$SUGART1)
+summary(res)
+dia_sugar %>% ggplot(aes(dia_sugar$SUGART1,as.numeric(dia_sugar$DIABBC))) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + theme_bw() + xlab("sugar") + ylab("diabetes")
+```
+
+### PROPER1 (percentage of energy from protein) vs CHOLRESB
+
+```{r}
+par(mfrow = c(1,2))
+df <- data.frame(tech_nutr$PROPER1,tech_biom$CHOLRESB,tech_biom$AGEC) %>% na.omit
+boxplot(df$tech_nutr.PROPER1)
+df <- df[df$tech_nutr.PROPER1 <= 35,]
+boxplot(df$tech_nutr.PROPER1)
+
+res <- glm(as.numeric(df$tech_biom.CHOLRESB)~df$tech_nutr.PROPER1)
+summary(res)
+df %>% ggplot(aes(df$tech_nutr.PROPER1,as.numeric(df$tech_biom.CHOLRESB))) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("proper1") + ylab("CHOLRESB")
+
+age_60 <- df[df$tech_biom.AGEC == 60,]
+dim(age_60)
+summary(glm(as.numeric(age_60$tech_biom.CHOLRESB)~age_60$tech_nutr.PROPER1))
+age_60 %>% ggplot(aes(age_60$tech_nutr.PROPER1, as.numeric(age_60$tech_biom.CHOLRESB))) +geom_point()+geom_smooth(method="glm",formula=y~x) + xlab("proper1") + ylab("CHOLESTEROL")+ggtitle("age of 60 cholesterol")
+```
+### PROPER1 vs LDLRESB
+
+```{r}
+ldl <- data.frame(tech_nutr$PROPER1, tech_biom$LDLRESB, tech_biom$AGEC) %>% na.omit
+ldl1 <- ldl[ldl$tech_nutr.PROPER1 <= 35,]
+class(ldl$tech_biom.AGEC)
+res <- glm(as.numeric(ldl$tech_biom.LDLRESB) ~ldl$tech_biom.AGEC)
+res1 <-glm(as.numeric(ldl$tech_biom.LDLRESB)~ldl$tech_nutr.PROPER1*ldl$tech_biom.AGEC+ldl$tech_nutr.PROPER1+ldl$tech_biom.AGEC)
+res2 <- glm(as.numeric(ldl$tech_biom.LDLRESB) ~ ldl$tech_nutr.PROPER1) 
+summary(res)
+summary(res1)
+summary(res2)
+summary(glm(ldl$tech_nutr.PROPER1~ldl$tech_biom.AGEC))
+ldl %>% ggplot(aes(ldl$tech_nutr.PROPER1,as.numeric(ldl$tech_biom.LDLRESB))) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("proper1") + ylab("LDLRESB")
+ldl %>% ggplot(aes(ldl$tech_biom.AGEC,ldl$tech_nutr.PROPER1)) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("age") + ylab("protein") # older people eat more protein
+```
+
+
+```{r}
+age_30 <- ldl1[ldl1$tech_biom.AGEC == 30,]
+summary(glm(as.numeric(age_30$tech_biom.LDLRESB)~age_30$tech_nutr.PROPER1))
+age_30 %>% ggplot(aes(age_30$tech_nutr.PROPER1, as.numeric(age_30$tech_biom.LDLRESB))) + geom_point()+geom_smooth(method="glm",formula=y~x) + xlab("proper1") + ylab("LDL")+ggtitle("age of 30 LDL")
+
+age_60 <- ldl1[ldl1$tech_biom.AGEC == 60,]
+dim(age_60)
+summary(glm(as.numeric(age_60$tech_biom.LDLRESB)~age_60$tech_nutr.PROPER1))
+age_60 %>% ggplot(aes(age_60$tech_nutr.PROPER1, as.numeric(age_60$tech_biom.LDLRESB))) +geom_point()+geom_smooth(method="glm",formula=y~x) + xlab("proper1") + ylab("LDL")+ggtitle("age of 60 LDL")
+```
+
+```{r}
+combined <- (tech_nutr$PROPER1 * tech_nutr$ENERGYT1 +tech_nutr$PROPER2 * tech_nutr$ENERGYT2)/(tech_nutr$ENERGYT1 + tech_nutr$ENERGYT2)
+df4 <- data.frame(combined , tech_biom$CHOLRESB) %>% na.omit()
+res <- glm(as.numeric(df4$tech_biom.CHOLRESB) ~ df4$combined)
+summary(res)
+df4 %>% ggplot(aes(df4$combined,as.numeric(df4$tech_biom.CHOLRESB))) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("combined proper") + ylab("Cholesterol") # combined protein percentage 
+```
+
+### PROPER1 vs SYSTOL 
+
+```{r}
+df <- data.frame(tech_nutr$PROPER1, tech_biom$SYSTOL,tech_biom$AGEC) %>% na.omit
+df1 <- df[df$tech_nutr.PROPER1 <= 35,]
+summary(df$tech_biom.SYSTOL)
+res <- glm(as.numeric(df$tech_biom.SYSTOL)~df$tech_nutr.PROPER1)
+res1 <- glm(as.numeric(df$tech_biom.SYSTOL)~df$tech_nutr.PROPER1*df$tech_biom.AGEC+df$tech_nutr.PROPER1+df$tech_biom.AGEC) #lower AIC
+summary(res)
+summary(res1)
+
+df %>% ggplot(aes(df$tech_nutr.PROPER1,as.numeric(df$tech_biom.SYSTOL), color = df$tech_biom.AGEC)) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("proper1") + ylab("SYSTOL") 
+#do a clustering to find out the relationship between protein and systolic pressure
+```
+
+
+### seperation for age groups 
+
+```{r}
+summary(tech_biom$AGEC)
+df_2_10 <- df1 %>% filter(df1$tech_biom.AGEC <= 10)
+df_2_10 %>% ggplot(aes(tech_nutr.PROPER1,as.numeric(tech_biom.SYSTOL), color = tech_biom.AGEC)) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("proper1") + ylab("SYSTOL") 
+res <- glm(as.numeric(df_2_10$tech_biom.SYSTOL)~df_2_10$tech_nutr.PROPER1)
+summary(res)
+```
+age 10~20 significant
+```{r}
+df20 <- df1 %>% filter(df1$tech_biom.AGEC > 0, df1$tech_biom.AGEC <= 20)
+res <- lm(as.numeric(df_10_20$tech_biom.SYSTOL)~df_10_20$tech_nutr.PROPER1)
+summary(res)
+df20 %>% ggplot(aes(tech_nutr.PROPER1,as.numeric(tech_biom.SYSTOL), color = tech_biom.AGEC)) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("proper1") + ylab("SYSTOL") +ggtitle("age below 20")
+```
+
+```{r}
+df_20_40 <- df1 %>% filter(df1$tech_biom.AGEC > 20,df1$tech_biom.AGEC <= 40)
+res <-glm(as.numeric(df_20_40$tech_biom.SYSTOL) ~df_20_40$tech_nutr.PROPER1)
+summary(res)
+df_20_40 %>% ggplot(aes(tech_nutr.PROPER1,as.numeric(tech_biom.SYSTOL), color = tech_biom.AGEC)) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("proper1") + ylab("SYSTOL")+ggtitle("age 20-40")
+
+```
+
+```{r}
+df_40_60 <- df1 %>% filter(df1$tech_biom.AGEC > 40,df1$tech_biom.AGEC <=60)
+res <-glm(as.numeric(df_40_60$tech_biom.SYSTOL) ~df_40_60$tech_nutr.PROPER1)
+summary(res)
+df_40_60 %>% ggplot(aes(tech_nutr.PROPER1,as.numeric(tech_biom.SYSTOL), color = tech_biom.AGEC)) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("protein") + ylab("SYSTOL") +ggtitle("age 40-60")
+
+```
+
+```{r}
+df_60_85 <- df1 %>% filter(df1$tech_biom.AGEC > 60,df1$tech_biom.AGEC <=80)
+res <-glm(as.numeric(df_60_85$tech_biom.SYSTOL) ~df_60_85$tech_nutr.PROPER1)
+summary(res)
+df_60_85 %>% ggplot(aes(tech_nutr.PROPER1,as.numeric(tech_biom.SYSTOL), color = tech_biom.AGEC)) + geom_point()+geom_smooth(method="glm", formula = y~x)+theme_bw()+xlab("protein") + ylab("SYSTOL")+ggtitle("age 60-80")
+```
+blood pressure increases as ages increases however except for age 10 - 20 population there is no strong relationship between protein intake and increase of Systolic blood pressure
+```{r}
+res <- glm(df$tech_biom.SYSTOL~df$tech_biom.AGEC*df$tech_nutr.PROPER1)
+summary(res)
+df %>% ggplot(aes(df$tech_biom.AGEC,df$tech_biom.SYSTOL)) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + ggtitle("Logistic regression model fit") + theme_bw() + xlab("age") + ylab("systol") 
+df %>% ggplot(aes(df$tech_biom.AGEC, df$tech_nutr.PROPER1)) + geom_point()+geom_smooth(method="glm", formula = y ~ x) + ggtitle("Logistic regression model fit") + theme_bw() + xlab("age") + ylab("PROPER1") 
+length(df$tech_nutr.PROPER1)
+summary(glm(df$tech_nutr.PROPER1~df$tech_biom.AGEC))
+```
+PROPER1 has a positive relationship with age 
+
+
+```{r}
+age_30 <- df1[df1$tech_biom.AGEC == 30,]
+age_60 <- df1[df1$tech_biom.AGEC == 60,]
+c(dim(age_30),dim(age_60))
+summary(glm(age_30$tech_nutr.PROPER1~age_30$tech_biom.SYSTOL))
+summary(glm(age_60$tech_nutr.PROPER1~age_60$tech_biom.SYSTOL))
+age_30 %>% ggplot(aes(age_30$tech_nutr.PROPER1,tech_biom.SYSTOL)) + geom_point()+geom_smooth(method = "glm", formula = y ~x) 
+```
+
+
+
+```{r }
+pnorm(Inf,0,1)
+pnorm(0,0,1)
+30*exp(-0.05/4)*pnorm(0.88,0,1)
+```
+

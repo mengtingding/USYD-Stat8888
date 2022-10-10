@@ -1,0 +1,224 @@
+---
+title: '480206718'
+date: "03/11/2020"
+output:  
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE,warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+adult <- read.csv("adult.csv")
+dim(adult)
+
+```
+
+```{r}
+library(ISLR)
+library(rpart)
+library(rpart.plot)
+library(dplyr)
+library(MASS)
+library(knitr)
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(glmnet)
+library(kableExtra)
+```
+Executive summary:
+
+From the basic EDA of the dataset I have found that: 
+
+* This dataset has more male than female
+
+* Until age 50, as age grows the proportion of people who have a capital earn larger than 50K is increasing. There may be a positive relationship between age and earnings.
+
+* From the stacked bar chart and the proportion table, male is far more likely to have a capital gain larger than 50K. Gender might be a predictor to the capital gain.
+
+* Asian-pac-Islander and White are more likely to have a capital gain greater than 50K than other race
+
+* According to the proportion table for education, a higher education experience is more likely to have higher pay. There is a larger proportion of people in Asian-Pac_islanders to search for higher education such as Master's and Doctorate degree.
+
+* From the logistic regression, the variables age, male, working hours, education, relationship and workclass have a strong relationship with salary class. 
+* In step wise BIC function from full model, the variable workclass is colinear with the variable occupation therefore deleted from the classifiers. 
+* From the classifiers I built, did not detect any interaction effect.
+* No models give conflicting interpretation, however, there are models include different predicting variables than others. 
+
+
+
+
+
+
+
+
+
+
+
+## EDA
+
+### numerical variables
+```{r}
+summary(adult$capital_gain)
+summary(adult$age)
+```
+
+
+### categorical variables
+```{r}
+counts<-table(adult$gender)
+barplot(counts,col=c('blue3',"red3"),main = "gender distribution")
+```
+
+```{r}
+df_age <- data.frame(adult$X,adult$age)
+for(i in 1:dim(df_age)[1]){
+  if(df_age$adult.X[i] ==" >50K"|df_age$adult.X[i]==" >50K."){
+    df_age$X_c[i] <- ">50K"
+  }else{
+    df_age$X_c[i] <-"<=50K"
+  }
+}
+for(i in 1:dim(df_age)[1]){
+  if(df_age$X_c[i] == ">50K"){
+    df_age$dum[i] = 1
+  }else{
+    df_age$dum[i] =0
+  }
+}
+adult1 <- cbind(adult,df_age$dum) #bind the dummy variable
+colnames(adult1)[16] <- "dum"
+
+df_age$AgeGroup <- cut(df_age$adult.age, breaks = c(min(df_age$adult.age),20,30,40,50,60,70,80,91), right = FALSE)
+
+df_age %>% ggplot(aes(df_age$AgeGroup,fill=X_c))+geom_bar(position = "dodge")+xlab("AgeGroup")+ggtitle("age vs salary class")
+```
+
+
+```{r}
+kable(prop.table(table(adult1$gender,df_age$X_c),1))
+adult1 %>% ggplot(aes(gender, fill =df_age$X_c))+geom_bar(position="dodge")+ggtitle("gender vs salary class")
+
+```
+
+
+```{r}
+df_race <- data.frame(adult1$race,adult1$dum,adult1$education,df_age$X_c)
+colnames(df_race) <- c("race","dum","education","X_c")
+kbl(prop.table(table(df_race$race,df_race$X_c),1) %>% round(4))%>% kable_paper(full_width = F)
+
+df_race %>% ggplot(aes(race,fill=X_c))+geom_bar()+ggtitle("race vs salary class")
+df_race %>% ggplot(aes(education, fill =X_c ))+geom_bar()+theme(axis.text.x = element_text(angle = 90))+ggtitle("education vs salary class")
+prop.table(table(df_race$education,df_race$X_c),1) %>% round(4) %>% kbl() %>% kable_paper("hover", full_width = F)
+```
+
+
+## regression
+
+###logistic regression
+
+```{r}
+adult2 <- adult1[adult1$capital_gain >0,] #exclude all the observations have a capital gain 0
+lst <- c(" 10th"," 11th"," 12th"," 1st-4th"," 5th-6th"," 7th-8th"," 9th"," Preschool")
+adult3 <- subset(adult2,select = -c(capital_gain,X,fnlwgt))
+adult3 <- subset(adult3, !(education %in% lst))
+
+tr_inx <- createDataPartition(adult3$dum)$Resample1
+adult3_tr <- adult3[tr_inx,]
+adult3_tr$dum <- factor(adult3_tr$dum)
+adult3_ts <- adult3[-tr_inx,]
+adult3_ts$dum <- factor(adult3_ts$dum)
+glm.fit <- glm(dum~.,data=adult3_tr,family=binomial)
+summary(glm.fit)
+```
+This is the multiple logistic regression model. In this model, age, relationship of wife, hours_per_week, gender male, education and occupation are the variables have strong relationship to the salary class >50K. 
+
+
+### The stepwise variable selection
+```{r}
+stepBICfull <- step(glm.fit, k=log(length(adult3)))
+
+```
+From the step-wise function we can see that the selected variables are matched with the full logistic model. 
+
+### LASSO penalization 
+
+```{r}
+X <- data.matrix(adult3[,1:ncol(adult3)-1])
+y <- adult3[,ncol(adult3)]
+cv_lasso <- cv.glmnet(X,y,family="binomial",alpha=1,lambda=NULL)
+plot(cv_lasso)
+cv_lasso$lambda.min
+```
+
+### random forest
+
+```{r}
+adult_rf <- randomForest(dum~.,data=adult3_tr,importance=TRUE,proximity =TRUE)
+adult_rf$importance
+```
+relationship is the variable most related to the capital gain > 50K according to the random forest importance, the other variables are age, education,gender, hours_per_week and marital status.
+
+
+```{r}
+predict.rf <- predict(adult_rf,newdata=adult3_ts)
+summary(predict.rf)
+mean(predict.rf == adult3_ts$dum)
+```
+the accuracy of random forest is 0.7599
+
+### LDA 
+
+```{r}
+res_lda <- lda(dum~education+gender+age+relationship,adult3_tr)
+res_lda
+```
+
+```{r}
+test.predicted.lda <- predict(res_lda, newdata = adult3_ts)
+table(adult3_ts$dum, test.predicted.lda$class)
+mean(test.predicted.lda$class == adult3_ts$dum)
+```
+the prediction accuracy rate is 0.7497 for the LDA regression, the LDA performs relatively well on predicting.
+
+### QDA
+
+
+```{r}
+qda.fit <- qda(dum~education+gender+age+relationship,adult3_tr)
+test.predicted.qda <- predict(qda.fit, newdata = adult3_ts)
+mean(test.predicted.qda$class == adult3_ts$dum)
+```
+
+
+The prediction accuracy for QDA is 0.7342 which is lower than LDA while having the same predicting variables as the LDA. Therefore we can say that LDA performs better than QDA. 
+
+Comparing the accuracy of prediction for different classifiers, 0.7599 of randomforest, 0.7342 of QDA and 0.7497 of LDA, the classifier of randomforest performs the best of all. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
